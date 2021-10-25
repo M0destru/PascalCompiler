@@ -1,0 +1,16 @@
+C:\Users\Rustam-PC\source\repos\PascalCompiler\PascalCompiler\bin\Debug\net5.0\PascalCompiler.exe
+C:\Users\Rustam-PC\source\repos\PascalCompiler\PascalCompiler\bin\Debug\net5.0\PascalCompiler.deps.json
+C:\Users\Rustam-PC\source\repos\PascalCompiler\PascalCompiler\bin\Debug\net5.0\PascalCompiler.runtimeconfig.json
+C:\Users\Rustam-PC\source\repos\PascalCompiler\PascalCompiler\bin\Debug\net5.0\PascalCompiler.runtimeconfig.dev.json
+C:\Users\Rustam-PC\source\repos\PascalCompiler\PascalCompiler\bin\Debug\net5.0\PascalCompiler.dll
+C:\Users\Rustam-PC\source\repos\PascalCompiler\PascalCompiler\bin\Debug\net5.0\ref\PascalCompiler.dll
+C:\Users\Rustam-PC\source\repos\PascalCompiler\PascalCompiler\bin\Debug\net5.0\PascalCompiler.pdb
+C:\Users\Rustam-PC\source\repos\PascalCompiler\PascalCompiler\obj\Debug\net5.0\PascalCompiler.csproj.AssemblyReference.cache
+C:\Users\Rustam-PC\source\repos\PascalCompiler\PascalCompiler\obj\Debug\net5.0\PascalCompiler.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Rustam-PC\source\repos\PascalCompiler\PascalCompiler\obj\Debug\net5.0\PascalCompiler.AssemblyInfoInputs.cache
+C:\Users\Rustam-PC\source\repos\PascalCompiler\PascalCompiler\obj\Debug\net5.0\PascalCompiler.AssemblyInfo.cs
+C:\Users\Rustam-PC\source\repos\PascalCompiler\PascalCompiler\obj\Debug\net5.0\PascalCompiler.csproj.CoreCompileInputs.cache
+C:\Users\Rustam-PC\source\repos\PascalCompiler\PascalCompiler\obj\Debug\net5.0\PascalCompiler.dll
+C:\Users\Rustam-PC\source\repos\PascalCompiler\PascalCompiler\obj\Debug\net5.0\ref\PascalCompiler.dll
+C:\Users\Rustam-PC\source\repos\PascalCompiler\PascalCompiler\obj\Debug\net5.0\PascalCompiler.pdb
+C:\Users\Rustam-PC\source\repos\PascalCompiler\PascalCompiler\obj\Debug\net5.0\PascalCompiler.genruntimeconfig.cache

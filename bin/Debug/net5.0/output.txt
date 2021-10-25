@@ -1,0 +1,32 @@
+   1. program NumOfCombinations;
+   2. var
+   3. i, n, k: integer;
+   4. a: array [1..10] of integer;
+   5. num, denom: integer;
+   6. realCheck: real;
+   7. str: string;
+   8. begin
+   9. readln(n, k); ?
+                    ^
+****[Error] Code 1: Illegal character****
+  10. num := 100000000000;
+             ^
+****[Error] Code 4: Error in integer constant****
+  11. for i := n downto n - k + 1 do begin 
+  12. nu!m := num * i; // нум умножить на i
+        ^
+****[Error] Code 1: Illegal character****
+  13. end;
+  14. denom := 1xaa;
+  15. for i := 1 to k do begin
+  16. denom := denom * i
+  17. realCheck := 1.5e+5 + 1..1;
+  18. realCheck := 2.056 + realCheck / 5;
+  19.  end;
+  20. str := 'Text';
+  21. { writeln(num div denom)
+  22. end.
+          ^
+****[Error] Code 2: Unexpected end of file****
+
+Total Errors: 4
