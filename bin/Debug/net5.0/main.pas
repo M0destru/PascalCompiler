@@ -1,22 +1,32 @@
-program NumOfCombinations;
-var
-i, n, k: integer;
-a: array [1..10] of integer;
-num, denom: integer;
-realCheck: real;
-str: string;
+program test1;
+var e: real;
+    a, b, c: integer;
 begin
-readln(n, k); ?
-num := 100000000000;
-for i := n downto n - k + 1 do begin 
-nu!m := num * i; // нум умножить на i
-end;
-denom := 1xaa;
-for i := 1 to k do begin
-denom := denom * i
-realCheck := 1.5e+5 + 1..1;
-realCheck := 2.056 + realCheck / 5;
- end;
-str := 'Text';
-{ writeln(num div denom)
+    a := ? 10;
+    e := 5.5;
+    str := 'str1';
+    while c > 1 do begin
+        c := c -1 ;
+    end;
+    
+    c:= c + 25 * 10 - 1 + 5 div 2);
+
+    e:=+5.6;
+    
+    if c > 23 then
+        e:=11.5;
+        
+    if c + e < 0 then 
+    begin
+        e:= 25;
+    end
+    else 
+    begin
+        e:=26;
+    end;
+    
+    {if c or 1 then
+        c:= 25;
+        e:= e + 0.1;
+    else}
 end.

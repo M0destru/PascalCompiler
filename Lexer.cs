@@ -5,32 +5,33 @@ namespace PascalCompiler
 {
     class Lexer
     {
-        int line; // номер строки
-        int col; // номер символа
+        public int line; // номер строки
+        public int col; // номер символа
         string buf; // считанная строка кода
         char curChar; // текущая литера
-        StreamReader sr; // ввод символов из файла
+        StreamReader reader; // ввод символов из файла
+        StreamWriter writer; // вывод текста программы в выходной файл
         CToken curToken; // текущая сформированная лексема
 
-        public Lexer(string inFile)
+        public Lexer(StreamReader reader, StreamWriter writer)
         {
-            sr = new StreamReader(inFile);
+            this.reader = reader;
+            this.writer = writer;
             buf = "";
             line = col = 0;
-            curChar = GetNextChar();
+            GetNextChar();
         }
 
         /* получить следующую литеру */
-        private char GetNextChar()
+        private void GetNextChar()
         {
             /* буфер пуст */
             if (col == buf.Length)
             {
-                string str = sr.ReadLine();
+                string str = reader.ReadLine();
                 if (str != null)
                 {
-                    Program.sw.WriteLine($"{line + 1,4}. {str}");
-                    Console.WriteLine();
+                    writer.WriteLine($"{line + 1,4}. {str}");
                     buf = str + '\n';
                     line++;
                     col = 0;
@@ -38,7 +39,7 @@ namespace PascalCompiler
                 else 
                     buf += "\0";
             }
-            return buf[col++];        
+            curChar = buf[col++];        
         }
 
         /* откат к предыдущей литере */
@@ -53,7 +54,7 @@ namespace PascalCompiler
         /* выдать ошибку и перейти к следующей литере */
         private void ThrowError(int errLine, int errCol, EErrorType errType)
         {
-            curChar = GetNextChar();
+            GetNextChar();
             throw new Error(errLine, errCol, errType);
         }
 
@@ -64,7 +65,7 @@ namespace PascalCompiler
             do
             {
                 curLexem += curChar;
-                curChar = GetNextChar();
+                GetNextChar();
             }
             while (condition(curLexem));
             return curLexem;
@@ -76,14 +77,14 @@ namespace PascalCompiler
             /* если достигнут конец файла */
             if (curChar == '\0')
             {
-                sr.Close();
+                reader.Close();
                 return null;
             }
 
             /* символы пробел и перенос строки */
             if (curChar == ' ' || curChar == '\n')
             {
-                curChar = GetNextChar();
+                GetNextChar();
                 return GetNextToken();
             }
 
@@ -95,7 +96,7 @@ namespace PascalCompiler
 
                 if (curChar != '}')
                     ThrowError(line, col - 1, EErrorType.errEOF);
-                curChar = GetNextChar();
+                GetNextChar();
                 return GetNextToken();
             }
 
@@ -110,7 +111,7 @@ namespace PascalCompiler
                 {
                     /* добавить '.' к вещественной части числа */
                     fractPart += curChar;
-                    curChar = GetNextChar();
+                    GetNextChar();
                     /* если текущая литера снова '.', то встретился символ '..' */
                     if (curChar == '.')
                     {
@@ -127,7 +128,7 @@ namespace PascalCompiler
                         {
                             /* добавить литеру к вещественной части */
                             fractPart += curChar;
-                            curChar = GetNextChar();
+                            GetNextChar();
                             /* если литера является знаком '-'/'+' или цифрой */
                             if (curChar == '-' || curChar == '+' || char.IsDigit(curChar))
                                 fractPart += SearchCurLexem(lex => char.IsDigit(curChar));
@@ -179,7 +180,7 @@ namespace PascalCompiler
                     ThrowError(startLine, startCol, EErrorType.errEOF);
 
                 curToken = new ConstValueToken(strConst + curChar);
-                curChar = GetNextChar();
+                GetNextChar();
             }
 
             /* оператор или строка комментариев */

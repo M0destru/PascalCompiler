@@ -5,30 +5,38 @@ namespace PascalCompiler
 {
     public enum ETokenType
     {
-        Identifier,
-        Operation,
-        Const
+        Identifier = 1, 
+        Const,
+        Operation
     }
 
     public enum EOperation
     {
-        /* операции */
+        Program = 3,
+        Semicolon, // ;
+        Point, // .
+        Equals, // =
+        Var,
+        Comma, // ,
+        Colon, // :
+        Begin,
+        End,
+        If,
+        While,
+        Assignment, // :=
+        RightBracket, // )
+        Then,
+        Do,
         Plus, // +
         Min, // -
         Mul, // *
         Division, // /
-        Equals, // =
         NotEquals, // <>
         Less, // <
         Bigger, // >
         Lesseqv, // <=
         Bigeqv, // >=
-        Point, // .
         TwoPoint, // ..
-        Comma, // ,
-        Semicolon, // ;
-        Colon, // :
-        Assignment, // :=
         At, // @
         Quote, // '
         LeftBrace, // {
@@ -36,27 +44,21 @@ namespace PascalCompiler
         LeftSqBracket, // [
         RightSqBracket, // ]
         LeftBracket, // (
-        RightBracket, // )
         Grid, // #
         Dollar, // $
         Lid, // ^
-        /* ключевые слова */
         Abs,
         And,
         Array,
-        Begin,
         Case,
         Const,
         Div,
-        Do,
         Downto,
         Else,
-        End,
         File,
         For,
         Function,
         Goto,
-        If,
         In,
         Label,
         Mod,
@@ -66,25 +68,18 @@ namespace PascalCompiler
         Or,
         Packed,
         Procedure,
-        Program,
         Read,
         Readln,
         Record,
         Repeat,
         Set,
-        Then,
         To,
         Type,
         Until,
         Uses,
-        Var,
-        While,
         With,
         Write,
-        Writeln,
-        Integer,
-        Real,
-        String
+        Writeln
     }
 
     public enum EValueType
@@ -96,22 +91,57 @@ namespace PascalCompiler
 
     public enum EErrorType
     {
-        errUnknownLexem = 1,
+        errExpectedIdent = 1,
+        errExpectedConst,
+        errExpectedProgram,
+        errExpectedSemicolon,
+        errExpectedPoint,
+        errExpectedEquals,
+        errExpectedVar,
+        errExpectedComma,
+        errExpectedColon,
+        errExpectedBegin,
+        errExpectedEnd,
+        errExpectedIf,
+        errExpectedWhile,
+        errExpectedAssignment,
+        errExpectedBracketEnd,
+        errExpectedThen,
+        errExpectedDo,
+        errUnknownLexem,
         errEOF,
         errMissingQuote,
         errInIntegerConst,
         errInRealConst
+
     }
 
     class Error : Exception
     {
         static Dictionary<EErrorType, string> errMap = new Dictionary<EErrorType, string>
         {
+            [EErrorType.errExpectedIdent] = "Ident expected",
+            [EErrorType.errExpectedConst] = "Const expected",
+            [EErrorType.errExpectedProgram] = "'program' expected",
+            [EErrorType.errExpectedSemicolon] = "';' expected",
+            [EErrorType.errExpectedPoint] = "'.' expected",
+            [EErrorType.errExpectedEquals] = "'=' expected",
+            [EErrorType.errExpectedVar] = "'var' expected",
+            [EErrorType.errExpectedComma] = "',' expected",
+            [EErrorType.errExpectedColon] = "':' expected",
+            [EErrorType.errExpectedBegin] = "'begin' expected",
+            [EErrorType.errExpectedEnd] = "'end' expected",
+            [EErrorType.errExpectedIf] = "'if' expected",
+            [EErrorType.errExpectedWhile] = "'while' expected",
+            [EErrorType.errExpectedAssignment] = "':=' expected",
+            [EErrorType.errExpectedBracketEnd] = "')' expected",
+            [EErrorType.errExpectedThen] = "'then' expected",
+            [EErrorType.errExpectedDo] = "'do' expected",
             [EErrorType.errUnknownLexem] = "Illegal character",
             [EErrorType.errEOF] = "Unexpected end of file",
             [EErrorType.errMissingQuote] = "String constant exceeds line",
             [EErrorType.errInIntegerConst] = "Error in integer constant",
-            [EErrorType.errInRealConst] = "Error in real constant"
+            [EErrorType.errInRealConst] = "Error in real constant",
         };
 
         public int Line { get; set; }
@@ -123,6 +153,20 @@ namespace PascalCompiler
             Line = line;
             Col = col;
             ErrorType = errType;
+        }
+
+        public Error(int line, int col, ETokenType tt)
+        {
+            Line = line;
+            Col = col;
+            ErrorType = (EErrorType)(int)tt;
+        }
+
+        public Error (int line, int col, EOperation expectedOp)
+        {
+            Line = line;
+            Col = col;
+            ErrorType = (EErrorType)(int)expectedOp;
         }
 
         public override string ToString()
@@ -205,18 +249,11 @@ namespace PascalCompiler
             ["while"] = EOperation.While,
             ["with"] = EOperation.With,
             ["write"] = EOperation.Write,
-            ["writeln"] = EOperation.Writeln,
-            ["integer"] = EOperation.Integer,
-            ["real"] = EOperation.Real,
-            ["string"] = EOperation.String
+            ["writeln"] = EOperation.Writeln
         };
 
         public ETokenType TokenType { get; set; }
 
-        public override string ToString()
-        {
-            return $"{TokenType}";
-        }
     }
 
     class OperationToken : CToken
@@ -233,7 +270,7 @@ namespace PascalCompiler
 
         public override string ToString()
         {
-            return $"{Oper} " ;
+            return $"{Oper}" ;
         }
     }
 
@@ -250,7 +287,7 @@ namespace PascalCompiler
 
         public override string ToString()
         {
-            return $"{base.ToString()} ";
+            return $"{IdentifierName}";
         }
     }
 
@@ -285,11 +322,6 @@ namespace PascalCompiler
     abstract class CVariant
     {
         public EValueType ValueType { get; set; }
-
-        public override string ToString()
-        {
-            return $"{ValueType}";
-        }
     }
 
     class IntegerVariant : CVariant
