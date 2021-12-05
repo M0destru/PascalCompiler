@@ -8,7 +8,7 @@ namespace PascalCompiler
     {
         public static void Main()
         {
-            CCompiler сompiler = new CCompiler("./prog.pas", "./output.txt");
+            CCompiler сompiler = new CCompiler("./prog2.pas", "./output.txt");
         }
     }
 }

@@ -3,7 +3,7 @@ using System.IO;
 
 namespace PascalCompiler
 {
-    class Lexer
+    class CLexer
     {
         public int line; // номер строки
         public int col; // номер символа
@@ -13,7 +13,7 @@ namespace PascalCompiler
         StreamWriter writer; // вывод текста программы в выходной файл
         CToken curToken; // текущая сформированная лексема
 
-        public Lexer(StreamReader reader, StreamWriter writer)
+        public CLexer(StreamReader reader, StreamWriter writer)
         {
             this.reader = reader;
             this.writer = writer;
@@ -42,7 +42,7 @@ namespace PascalCompiler
             curChar = buf[col++];        
         }
 
-        /* откат к предыдущей литере */
+        /* откатиться к предыдущей литере */
         private char GetPrevChar()
         {
             if (col > 0)
@@ -51,11 +51,11 @@ namespace PascalCompiler
                 return ' ';
         }
 
-        /* выдать ошибку и перейти к следующей литере */
+        /* пробросить ошибку и перейти к следующей литере */
         private void ThrowError(int errLine, int errCol, EErrorType errType)
         {
             GetNextChar();
-            throw new Error(errLine, errCol, errType);
+            throw new CompilerError(errLine, errCol, errType);
         }
 
         /* найти конец текущей лексемы */
@@ -74,14 +74,16 @@ namespace PascalCompiler
         /* получить следующий токен */
         public CToken GetNextToken()
         {
+            /* позиция начала нового токена */
+            int tokenLine = line, tokenCol = col;
+
             /* если достигнут конец файла */
             if (curChar == '\0')
             {
-                reader.Close();
                 return null;
             }
 
-            /* символы пробел и перенос строки */
+            /* символы пробела и переноса строки */
             if (curChar == ' ' || curChar == '\n')
             {
                 GetNextChar();
@@ -137,9 +139,9 @@ namespace PascalCompiler
                         /* проверка считанной вещественной константы */
                         double realNum;
                         if (double.TryParse((wholePart + fractPart).Replace('.', ','), out realNum))
-                            curToken = new ConstValueToken(realNum);
+                            curToken = new ConstValueToken(realNum, tokenLine, tokenCol);
                         else if (double.MaxValue < realNum)
-                            ThrowError(line, col - (wholePart + fractPart).Length, EErrorType.errInRealConst);
+                            ThrowError(tokenLine, tokenCol, EErrorType.errInRealConst);
                         else
                             ThrowError(line, col, EErrorType.errUnknownLexem);
                     }
@@ -149,9 +151,9 @@ namespace PascalCompiler
                 {
                     int intNum;
                     if (int.TryParse(wholePart, out intNum))
-                        curToken = new ConstValueToken(intNum);
+                        curToken = new ConstValueToken(intNum, tokenLine, tokenCol);
                     else
-                        ThrowError(line, col - wholePart.Length, EErrorType.errInIntegerConst);
+                        ThrowError(tokenLine, tokenCol, EErrorType.errInIntegerConst);
                 }
             }
 
@@ -163,9 +165,14 @@ namespace PascalCompiler
 
                 /* поиск идентификатора в словаре ключевых слов */
                 if (CToken.operationMap.ContainsKey(name))
-                    curToken = new OperationToken(CToken.operationMap[name], name);
+                {
+                    if (name == "true" || name == "false")
+                        curToken = name == "true"? new ConstValueToken(true, tokenLine, tokenCol): new ConstValueToken(false, tokenLine, tokenCol);
+                    else
+                        curToken = new OperationToken(CToken.operationMap[name], name, tokenLine, tokenCol);
+                }
                 else
-                    curToken = new IdentifierToken(name);
+                    curToken = new IdentifierToken(name, tokenLine, tokenCol);
             }
 
             /* строковая константа */
@@ -179,7 +186,7 @@ namespace PascalCompiler
                 if (curChar != '\'' || strConst.Length > 255)
                     ThrowError(startLine, startCol, EErrorType.errEOF);
 
-                curToken = new ConstValueToken(strConst + curChar);
+                curToken = new ConstValueToken(strConst + curChar, tokenLine, tokenCol);
                 GetNextChar();
             }
 
@@ -195,7 +202,7 @@ namespace PascalCompiler
                     return GetNextToken();
                 }
                 /* оператор */
-                curToken = new OperationToken(CToken.operationMap[oper], oper);
+                curToken = new OperationToken(CToken.operationMap[oper], oper, tokenLine, tokenCol);
             }
 
             /* неизвестная лексема */
