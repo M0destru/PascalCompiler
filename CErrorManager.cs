@@ -33,7 +33,8 @@ namespace PascalCompiler
         errUnknownIdent,
         errInType,
         errTypeMismatch,
-        errInLogicExpr
+        errInLogicExpr,
+        errSyntaxError
     }
 
     class CompilerError : Exception
@@ -67,7 +68,8 @@ namespace PascalCompiler
             [EErrorType.errUnknownIdent] = "Unknown identifier",
             [EErrorType.errInType] = "Error in type definiton",
             [EErrorType.errTypeMismatch] = "Type mismatch",
-            [EErrorType.errInLogicExpr] = "Expression type must be boolean"
+            [EErrorType.errInLogicExpr] = "Expression type must be boolean",
+            [EErrorType.errSyntaxError] = "Syntax error"
         };
 
         public int Line { get; set; }

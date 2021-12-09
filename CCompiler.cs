@@ -21,8 +21,8 @@ namespace PascalCompiler
         {
             reader = new StreamReader(inFileName);
             writer = new StreamWriter(outFileName);
-            lexer = new CLexer(reader, writer);
             errManager = new CErrorManager(writer);
+            lexer = new CLexer(reader, writer);
             availableTypes = new Dictionary<string, CType>
             {
                 ["integer"] = new CIntType(),
@@ -32,15 +32,8 @@ namespace PascalCompiler
                 ["unknown"] = new CUnknownType()
             };
             variables = new Dictionary<string, CVariable>();
-            try
-            {
-                GetNextToken();
-                Programma();
-            }
-            catch (CompilerError)
-            {
-
-            }
+            GetNextToken();
+            Programma();
             errManager.PrintNumOfErrors();
 
             /* закрытие файлов */
@@ -67,7 +60,7 @@ namespace PascalCompiler
 
             /* типы неприводимы друг к другу */
             errManager.AddError(new CompilerError(curToken.Line, curToken.Col, EErrorType.errTypeMismatch));
-            return availableTypes["unknown"]; 
+            return availableTypes["unknown"];
         }
 
         /* операнды аддитивных операций */
@@ -146,7 +139,7 @@ namespace PascalCompiler
         private void Accept(ETokenType expectedSymbol)
         {
             if (curToken == null)
-                errManager.AddError(new CompilerError(curToken.Line, curToken.Col, expectedSymbol), true);
+                errManager.AddError(new CompilerError(lexer.line, lexer.col, expectedSymbol), true);
 
             if (curToken.TokenType == expectedSymbol)
                 GetNextToken();
@@ -158,7 +151,7 @@ namespace PascalCompiler
         private void Accept(EOperation expectedSymbol)
         {
             if (curToken == null)
-                errManager.AddError(new CompilerError(curToken.Line, curToken.Col, expectedSymbol), true);
+                errManager.AddError(new CompilerError(lexer.line, lexer.col, expectedSymbol), true);
 
             if (curToken.TokenType == ETokenType.Operation && ((OperationToken)curToken).OperType == expectedSymbol)
                 GetNextToken();
@@ -177,7 +170,7 @@ namespace PascalCompiler
                     return true;
             }
             return false;
-        } 
+        }
 
         /* проверить что тип текущего токена совпадает с ожидаемым */
         bool IsIdentOrConst(List<ETokenType> tTypes)
@@ -192,27 +185,54 @@ namespace PascalCompiler
             return false;
         }
 
-        //void SkipTo (List <ETokenType> idents, List<EOperation> opers)
-        //{
-        //    while (curToken != null && !IsOperation(opers) && !IsIdentOrConst(idents))
-        //        GetNextToken();
-        //}
+        /* пропустить символы пока не встретится один из ожидаемых символов или null */
+        void SkipTo(List<ETokenType> idents, List<EOperation> opers)
+        {
+            while (curToken != null && !IsOperation(opers) && !IsIdentOrConst(idents))
+                GetNextToken();
+        }
 
         /* программа */
         void Programma()
         {
-            Accept(EOperation.Program);
-            Accept(ETokenType.Identifier);
-            Accept(EOperation.Semicolon);
+            try
+            {
+                Accept(EOperation.Program);
+                Accept(ETokenType.Identifier);
+                Accept(EOperation.Semicolon);
+            }
+            catch (CompilerError)
+            {
+                SkipTo(new List<ETokenType> { }, new List<EOperation> { EOperation.Var, EOperation.Begin });
+            }
+
             Block();
-            Accept(EOperation.Point);
+
+            try
+            {
+                Accept(EOperation.Point);
+            }
+            catch
+            {
+                SkipTo(new List<ETokenType> { }, new List<EOperation> { EOperation.Point });
+            }
         }
 
         /* блок */
         void Block()
         {
+
             VarPart();
-            StatementPart();
+            try
+            {
+                StatementPart();
+            }
+            catch (CompilerError)
+            {
+                SkipTo(new List<ETokenType> { }, new List<EOperation> { EOperation.End, EOperation.Point });
+                if (IsOperation(new List<EOperation> { EOperation.End }))
+                    GetNextToken();
+            }
         }
 
         /* раздел переменных */
@@ -223,8 +243,17 @@ namespace PascalCompiler
                 GetNextToken();
                 do
                 {
-                    SimilarTypeVarPart();
-                    Accept(EOperation.Semicolon);
+                    try
+                    {
+                        SimilarTypeVarPart();
+                        Accept(EOperation.Semicolon);
+                    }
+                    catch (CompilerError)
+                    {
+                        SkipTo(new List<ETokenType> { ETokenType.Identifier }, new List<EOperation> { EOperation.Semicolon, EOperation.Begin });
+                        if (IsOperation(new List<EOperation> { EOperation.Semicolon }))
+                            GetNextToken();
+                    }
 
                 } while (IsIdentOrConst(new List<ETokenType>() { ETokenType.Identifier }));
             }
@@ -236,54 +265,66 @@ namespace PascalCompiler
             /* создать вспомогательный список для добавления новых идентификаторов */
             List<string> tempListVars = new List<string>();
 
-            if (IsIdentOrConst(new List<ETokenType> { ETokenType.Identifier }))
+            try
             {
-                string name = ((IdentifierToken)curToken).IdentifierName;
+                IdentifierToken ident = curToken as IdentifierToken; 
+                Accept(ETokenType.Identifier);
                 /* проверить, что идентификатор не объявлен ранее */
-                if (tempListVars.Contains(name) || variables.ContainsKey(name))
-                    errManager.AddError(new CompilerError(curToken.Line, curToken.Col, EErrorType.errDuplicateIdent));
+                if (tempListVars.Contains(ident.IdentifierName) || variables.ContainsKey(ident.IdentifierName))
+                    errManager.AddError(new CompilerError(ident.Line, ident.Col, EErrorType.errDuplicateIdent));
                 else
-                    tempListVars.Add(name);
-                GetNextToken();
+                    tempListVars.Add(ident.IdentifierName);
             }
-            /* else - пробросить синтаксическую ошибку */
+            catch (CompilerError)
+            {
+                SkipTo(new List<ETokenType> { }, new List<EOperation> { EOperation.Comma, EOperation.Semicolon, EOperation.Begin });
+            }
 
             while (IsOperation(new List<EOperation>() { EOperation.Comma }))
             {
                 GetNextToken();
-                if (IsIdentOrConst(new List<ETokenType> { ETokenType.Identifier }))
+                try
                 {
-                    string name = ((IdentifierToken)curToken).IdentifierName;
+                    IdentifierToken ident = curToken as IdentifierToken;
+                    Accept(ETokenType.Identifier);
                     /* проверить, что идентификатор не объявлен ранее */
-                    if (tempListVars.Contains(name) || variables.ContainsKey(name))
-                        errManager.AddError(new CompilerError(curToken.Line, curToken.Col, EErrorType.errDuplicateIdent));
+                    if (tempListVars.Contains(ident.IdentifierName) || variables.ContainsKey(ident.IdentifierName))
+                        errManager.AddError(new CompilerError(ident.Line, ident.Col, EErrorType.errDuplicateIdent));
                     else
-                        tempListVars.Add(name);
-                    GetNextToken();
+                        tempListVars.Add(ident.IdentifierName);
                 }
-                /* else - пробросить синтаксическую ошибку */
+                catch (CompilerError)
+                {
+                    SkipTo(new List<ETokenType> { }, new List<EOperation> { EOperation.Comma, EOperation.Semicolon, EOperation.Begin });
+                }
             }
 
-            Accept(EOperation.Colon);
-            if (IsIdentOrConst(new List<ETokenType> { ETokenType.Identifier }))
+            try
             {
-                /* внести информацию о идентификаторах в область видимости */
-                string type = ((IdentifierToken)curToken).IdentifierName;
-                foreach (var varName in tempListVars)
-                {
-                    try
-                    {
-                        variables.Add(varName, new CVariable(varName, availableTypes[type]));
-                    }
-                    catch
-                    {
-                        errManager.AddError(new CompilerError(curToken.Line, curToken.Col, EErrorType.errInType));
-                        variables.Add(varName, new CVariable(varName, availableTypes["unknown"]));
-                    }
-                }
-                GetNextToken();
+                Accept(EOperation.Colon);
             }
-            /* else - пробросить синтаксическую ошибку */
+            catch (CompilerError)
+            {
+                SkipTo(new List<ETokenType> { ETokenType.Identifier }, new List<EOperation> { EOperation.Colon, EOperation.Semicolon, EOperation.Begin });
+                if (IsOperation(new List<EOperation> { EOperation.Colon }))
+                    GetNextToken();
+            }
+
+            IdentifierToken type = curToken as IdentifierToken;
+            Accept(ETokenType.Identifier);
+            /* внести информацию о идентификаторах в область видимости */
+            foreach (var varName in tempListVars)
+            {
+                try
+                {
+                    variables.Add(varName, new CVariable(varName, availableTypes[type.IdentifierName]));
+                }
+                catch
+                {
+                    errManager.AddError(new CompilerError(type.Line, type.Col, EErrorType.errInType));
+                    variables.Add(varName, new CVariable(varName, availableTypes["unknown"]));
+                }
+            }
         }
 
         /* раздел операторов */
@@ -295,13 +336,39 @@ namespace PascalCompiler
         /* составной оператор */
         void CompoundStatement()
         {
-            Accept(EOperation.Begin);
-            Statement();
+            try
+            {
+                Accept(EOperation.Begin);
+            }
+            catch (CompilerError)
+            {
+                SkipTo(new List<ETokenType> { }, new List<EOperation> { EOperation.Begin, EOperation.End });
+                if (IsOperation(new List<EOperation> { EOperation.Begin }))
+                    GetNextToken();
+            }
+
+            try
+            {
+                Statement();
+            }
+            catch (CompilerError)
+            {
+                SkipTo(new List<ETokenType> { }, new List<EOperation> { EOperation.Semicolon, EOperation.End });
+            }
+
             while (IsOperation(new List<EOperation>() { EOperation.Semicolon }))
             {
                 GetNextToken();
-                Statement();
+                try
+                {
+                    Statement();
+                }
+                catch (CompilerError)
+                {
+                    SkipTo(new List<ETokenType> { }, new List<EOperation> { EOperation.Semicolon, EOperation.End });
+                }
             }
+
             Accept(EOperation.End);
         }
 
@@ -309,32 +376,19 @@ namespace PascalCompiler
         void Statement()
         {
             if (IsIdentOrConst(new List<ETokenType> { ETokenType.Identifier }))
-            {
-                SimpleStatement();
-            }
-            else if (IsOperation(new List<EOperation> { EOperation.Begin, EOperation.If, EOperation.While }))
-            {
-                ComplexStatement();
-            }
-            else if (!IsOperation(new List<EOperation> { EOperation.End }))
-                errManager.AddError(new CompilerError(curToken.Line, curToken.Col, EErrorType.errInStatement));
-        }
+                AssignmentStatement();
 
-        /* простой оператор */
-        void SimpleStatement ()
-        {
-            AssignmentStatement();
-        }
-
-        /* сложный оператор */
-        void ComplexStatement()
-        {
-            if (IsOperation(new List<EOperation>() { EOperation.Begin }))
+            else if (IsOperation(new List<EOperation> { EOperation.Begin }))
                 CompoundStatement();
-            else if (IsOperation(new List<EOperation>() { EOperation.If }))
+
+            else if (IsOperation(new List<EOperation> { EOperation.If }))
                 IfStatement();
-            else
+
+            else if (IsOperation(new List<EOperation> { EOperation.While }))
                 LoopStatement();
+
+            else if (curToken != null && !IsOperation(new List<EOperation> {  EOperation.End }))
+                errManager.AddError(new CompilerError(curToken.Line, curToken.Col, EErrorType.errInStatement), true);
         }
 
         /* оператор присваивания */
@@ -458,6 +512,10 @@ namespace PascalCompiler
                 }
             }
 
+            /* синтаксическая ошибка */
+            else
+                errManager.AddError(new CompilerError(curToken.Line, curToken.Col, EErrorType.errSyntaxError), true);
+
             return expr;
         }
 
@@ -465,10 +523,30 @@ namespace PascalCompiler
         void IfStatement()
         {
             GetNextToken();
-            var expr = Expression();
-            if (!expr.isDerivedFrom(availableTypes["boolean"]) && expr.Type != EValueType.Unknown)
-                errManager.AddError(new CompilerError(curToken.Line, curToken.Col, EErrorType.errInLogicExpr));
-            Accept(EOperation.Then);
+            try
+            {
+                var expr = Expression();
+                if (!expr.isDerivedFrom(availableTypes["boolean"]) && expr.Type != EValueType.Unknown)
+                    errManager.AddError(new CompilerError(curToken.Line, curToken.Col, EErrorType.errInLogicExpr));
+            }
+            catch (CompilerError)
+            {
+                SkipTo(new List<ETokenType> { ETokenType.Identifier }, new List<EOperation>
+                    { EOperation.Then, EOperation.Begin, EOperation.If, EOperation.While, EOperation.Semicolon, EOperation.End });
+            }
+
+            try
+            {
+                Accept(EOperation.Then);
+            }
+            catch (CompilerError)
+            {
+                SkipTo(new List<ETokenType> { ETokenType.Identifier }, new List<EOperation> 
+                    { EOperation.Then, EOperation.Begin, EOperation.If, EOperation.While, EOperation.Semicolon, EOperation.End });
+                if (IsOperation(new List<EOperation> { EOperation.Then })) 
+                    GetNextToken();
+            }
+
             Statement();
             if (IsOperation(new List<EOperation>() { EOperation.Else }))
             {
@@ -481,11 +559,32 @@ namespace PascalCompiler
         void LoopStatement()
         {
             GetNextToken();
-            var expr = Expression();
-            if (!expr.isDerivedFrom(availableTypes["boolean"]) && expr.Type != EValueType.Unknown)
-                errManager.AddError(new CompilerError(curToken.Line, curToken.Col, EErrorType.errInLogicExpr));
-            Accept(EOperation.Do);
+            try
+            {
+                var expr = Expression();
+                if (!expr.isDerivedFrom(availableTypes["boolean"]) && expr.Type != EValueType.Unknown)
+                    errManager.AddError(new CompilerError(curToken.Line, curToken.Col, EErrorType.errInLogicExpr));
+            }
+            catch (CompilerError)
+            {
+                SkipTo(new List<ETokenType> { ETokenType.Identifier }, new List<EOperation>
+                    { EOperation.Do, EOperation.Begin, EOperation.If, EOperation.While, EOperation.Semicolon, EOperation.End });
+            }
+
+            try
+            {
+                Accept(EOperation.Do);
+            }
+            catch (CompilerError)
+            {
+                SkipTo(new List<ETokenType> { ETokenType.Identifier }, new List<EOperation>
+                    { EOperation.Do, EOperation.Begin, EOperation.If, EOperation.While, EOperation.Semicolon, EOperation.End });
+                if (IsOperation(new List<EOperation> { EOperation.Do}))
+                    GetNextToken();
+            }
+
             Statement();
+
         }
     }
 }
