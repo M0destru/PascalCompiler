@@ -36,10 +36,10 @@ namespace PascalCompiler
                     line++;
                     col = 0;
                 }
-                else 
+                else
                     buf += "\0";
             }
-            curChar = buf[col++];        
+            curChar = buf[col++];
         }
 
         /* откатиться к предыдущей литере */
@@ -167,7 +167,7 @@ namespace PascalCompiler
                 if (CToken.operationMap.ContainsKey(name))
                 {
                     if (name == "true" || name == "false")
-                        curToken = name == "true"? new ConstValueToken(true, tokenLine, tokenCol): new ConstValueToken(false, tokenLine, tokenCol);
+                        curToken = name == "true" ? new ConstValueToken(true, tokenLine, tokenCol) : new ConstValueToken(false, tokenLine, tokenCol);
                     else
                         curToken = new OperationToken(CToken.operationMap[name], name, tokenLine, tokenCol);
                 }
@@ -178,15 +178,14 @@ namespace PascalCompiler
             /* строковая константа */
             else if (curChar == '\'')
             {
-                int startLine = line, startCol = col;
                 /* пока в тексте не встретится закрывающая кавычка/символы переноса строки или конца файла */
                 string strConst = SearchCurLexem(lex => curChar != '\'' && curChar != '\n');
 
                 /* если не встретилась закрывающая кавычка или длина строковой константы >= 255 */
                 if (curChar != '\'' || strConst.Length > 255)
-                    ThrowError(startLine, startCol, EErrorType.errEOF);
+                    ThrowError(tokenLine, tokenCol, EErrorType.errEOF);
 
-                curToken = new ConstValueToken(strConst + curChar, tokenLine, tokenCol);
+                curToken = new ConstValueToken(strConst.Substring(1), tokenLine, tokenCol);
                 GetNextChar();
             }
 

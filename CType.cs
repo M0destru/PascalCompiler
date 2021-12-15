@@ -1,15 +1,24 @@
-﻿
+﻿using System.Reflection.Emit;
+
 namespace PascalCompiler
 {
     class CVariable
     {
         public string Name { get; set; }
         public CType Type { get; set; }
+        public LocalBuilder Lb { get; set; }
 
         public CVariable (string varName, CType varType)
         {
             Name = varName;
             Type = varType;
+        }
+
+        public CVariable(string varName, CType varType, LocalBuilder lb)
+        {
+            Name = varName;
+            Type = varType;
+            Lb = lb;
         }
     }
 
@@ -21,9 +30,9 @@ namespace PascalCompiler
         public abstract bool isDerivedFrom(CType fromType);
     }
 
-    class CIntType: CType
+    class CIntType : CType
     {
-        public CIntType ()
+        public CIntType()
         {
             Type = EValueType.Integer;
         }
@@ -36,9 +45,9 @@ namespace PascalCompiler
         }
     }
 
-    class CRealType: CType
+    class CRealType : CType
     {
-        public CRealType ()
+        public CRealType()
         {
             Type = EValueType.Real;
         }
@@ -51,9 +60,9 @@ namespace PascalCompiler
         }
     }
 
-    class CStringType: CType
+    class CStringType : CType
     {
-        public CStringType ()
+        public CStringType()
         {
             Type = EValueType.String;
         }
@@ -66,9 +75,9 @@ namespace PascalCompiler
         }
     }
 
-    class CBooleanType: CType
+    class CBooleanType : CType
     {
-        public CBooleanType ()
+        public CBooleanType()
         {
             Type = EValueType.Boolean;
         }
@@ -96,3 +105,4 @@ namespace PascalCompiler
         }
     }
 }
+

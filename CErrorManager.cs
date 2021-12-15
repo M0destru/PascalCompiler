@@ -100,7 +100,7 @@ namespace PascalCompiler
         public override string ToString()
         {
             string errMsg = "";
-            errMsg = errMsg.PadLeft(Col+5);
+            errMsg = errMsg.PadLeft(Col + 5);
             errMsg += $"^\n****[Error] Code { (int)ErrorType }: { errMap[ErrorType] }****";
             return errMsg;
         }
@@ -109,18 +109,22 @@ namespace PascalCompiler
     /* менеджер ошибок - отвечает за хранение и вывод ошибок в файл */
     class CErrorManager
     {
-        List<CompilerError> errors;
-        StreamWriter writer;
+        private List<CompilerError> errors;
+        private StreamWriter writer;
+        public bool isError;
 
         public CErrorManager(StreamWriter writer)
         {
-            errors = new List<CompilerError>();
             this.writer = writer;
+            errors = new List<CompilerError>();
+            isError = false;
         }
 
         /* добавить новую ошибку */
         public void AddError(CompilerError err, bool throwErr = false)
         {
+            if (!isError)
+                isError = true;
             errors.Add(err);
             writer.WriteLine(err);
             if (throwErr)
@@ -128,9 +132,9 @@ namespace PascalCompiler
         }
 
         /* вернуть число обнаруженных ошибок */
-        public void PrintNumOfErrors()
+        public int GetNumOfErrors()
         {
-            writer.WriteLine ($"\nКоличество ошибок: {errors.Count}");
+            return errors.Count;
         }
 
     }

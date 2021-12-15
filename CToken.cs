@@ -4,7 +4,7 @@ namespace PascalCompiler
 {
     public enum ETokenType
     {
-        Identifier = 1, 
+        Identifier = 1,
         Const,
         Operation
     }
@@ -92,7 +92,7 @@ namespace PascalCompiler
         Unknown
     };
 
-   
+
     abstract class CToken
     {
         public static Dictionary<string, EOperation> operationMap = new Dictionary<string, EOperation>
@@ -173,7 +173,7 @@ namespace PascalCompiler
         public int Line { get; set; }
         public int Col { get; set; }
 
-        public CToken (int lexerLine, int lexerCol)
+        public CToken(int lexerLine, int lexerCol)
         {
             Line = lexerLine;
             Col = lexerCol;
@@ -185,7 +185,7 @@ namespace PascalCompiler
         public EOperation OperType { get; set; }
         public string Oper { get; set; }
 
-        public OperationToken(EOperation operType, string oper, int lexerLine, int lexerCol) : base (lexerLine, lexerCol)
+        public OperationToken(EOperation operType, string oper, int lexerLine, int lexerCol) : base(lexerLine, lexerCol)
         {
             TokenType = ETokenType.Operation;
             OperType = operType;
@@ -194,7 +194,7 @@ namespace PascalCompiler
 
         public override string ToString()
         {
-            return $"{Oper}" ;
+            return $"{Oper}";
         }
     }
 
@@ -237,7 +237,7 @@ namespace PascalCompiler
             ConstVal = new StringVariant(value);
         }
 
-        public ConstValueToken(bool value, int lexerLine, int lexerCol): base(lexerLine, lexerCol)
+        public ConstValueToken(bool value, int lexerLine, int lexerCol) : base(lexerLine, lexerCol)
         {
             TokenType = ETokenType.Const;
             ConstVal = new BooleanVariant(value);
@@ -247,5 +247,6 @@ namespace PascalCompiler
         {
             return $"{ConstVal} ";
         }
-    }    
+    }
 }
+

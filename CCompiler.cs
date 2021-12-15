@@ -1,28 +1,28 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Reflection.Emit;
 
 namespace PascalCompiler
 {
     /* компилятор */
     class CCompiler
     {
-        StreamReader reader;
-        StreamWriter writer;
         CLexer lexer;
         CErrorManager errManager;
         CToken curToken;
+        Dictionary<string, CType> availableTypes; // допустимые типы
+        Dictionary<string, CVariable> variables; // область переменных
+        ILGenerator il; // генератор IL-кодов
+        StreamReader reader;
+        StreamWriter writer;
 
-        /* допустимые типы */
-        Dictionary<string, CType> availableTypes;
-        /* список переменных */
-        Dictionary<string, CVariable> variables;
-
-        public CCompiler(string inFileName, string outFileName)
+        public CCompiler(string inFileName, string outFileName, ILGenerator il)
         {
             reader = new StreamReader(inFileName);
             writer = new StreamWriter(outFileName);
-            errManager = new CErrorManager(writer);
             lexer = new CLexer(reader, writer);
+            errManager = new CErrorManager(writer);
             availableTypes = new Dictionary<string, CType>
             {
                 ["integer"] = new CIntType(),
@@ -32,13 +32,21 @@ namespace PascalCompiler
                 ["unknown"] = new CUnknownType()
             };
             variables = new Dictionary<string, CVariable>();
+
+            this.il = il;
+        }
+
+        /* запустить процесс компиляции */
+        public bool RunCompilation ()
+        {
             GetNextToken();
             Programma();
-            errManager.PrintNumOfErrors();
-
+            writer.WriteLine($"\nКоличество ошибок: {errManager.GetNumOfErrors()}");
             /* закрытие файлов */
             reader.Close();
             writer.Close();
+            return errManager.GetNumOfErrors() == 0;
+
         }
 
         /* неявное преобразование значения одного типа в значение другого типа */
@@ -241,6 +249,7 @@ namespace PascalCompiler
             if (IsOperation(new List<EOperation>() { EOperation.Var }))
             {
                 GetNextToken();
+                il.BeginScope();
                 do
                 {
                     try
@@ -256,6 +265,7 @@ namespace PascalCompiler
                     }
 
                 } while (IsIdentOrConst(new List<ETokenType>() { ETokenType.Identifier }));
+                il.EndScope();
             }
         }
 
@@ -267,7 +277,7 @@ namespace PascalCompiler
 
             try
             {
-                IdentifierToken ident = curToken as IdentifierToken; 
+                IdentifierToken ident = curToken as IdentifierToken;
                 Accept(ETokenType.Identifier);
                 /* проверить, что идентификатор не объявлен ранее */
                 if (tempListVars.Contains(ident.IdentifierName) || variables.ContainsKey(ident.IdentifierName))
@@ -317,12 +327,36 @@ namespace PascalCompiler
             {
                 try
                 {
-                    variables.Add(varName, new CVariable(varName, availableTypes[type.IdentifierName]));
+                    if (availableTypes[type.IdentifierName].Type == EValueType.Integer)
+                    {
+                        variables.Add(varName, new CVariable(varName, availableTypes[type.IdentifierName]));
+                        if (errManager.GetNumOfErrors() == 0)
+                            variables[varName].Lb = il.DeclareLocal(typeof(int));
+                    }
+                    else if (availableTypes[type.IdentifierName].Type == EValueType.Real)
+                    {
+                        variables.Add(varName, new CVariable(varName, availableTypes[type.IdentifierName]));
+                        if (errManager.GetNumOfErrors() == 0)
+                            variables[varName].Lb = il.DeclareLocal(typeof(double));
+                    }
+                    else if (availableTypes[type.IdentifierName].Type == EValueType.String)
+                    {
+                        variables.Add(varName, new CVariable(varName, availableTypes[type.IdentifierName]));
+                        if (errManager.GetNumOfErrors() == 0)
+                            variables[varName].Lb = il.DeclareLocal(typeof(string));
+                    }
+                    else if (availableTypes[type.IdentifierName].Type == EValueType.Boolean)
+                    {
+                        variables.Add(varName, new CVariable(varName, availableTypes[type.IdentifierName]));
+                        if (errManager.GetNumOfErrors() == 0)
+                            variables[varName].Lb = il.DeclareLocal(typeof(bool));
+                    }
+
                 }
                 catch
                 {
                     errManager.AddError(new CompilerError(type.Line, type.Col, EErrorType.errInType));
-                    variables.Add(varName, new CVariable(varName, availableTypes["unknown"]));
+                    variables.Add(varName, new CVariable(varName, availableTypes["unknown"], null));
                 }
             }
         }
@@ -387,7 +421,10 @@ namespace PascalCompiler
             else if (IsOperation(new List<EOperation> { EOperation.While }))
                 LoopStatement();
 
-            else if (curToken != null && !IsOperation(new List<EOperation> {  EOperation.End }))
+            else if (IsOperation(new List<EOperation> { EOperation.Writeln, EOperation.Write }))
+                OutputStatement();
+
+            else if (curToken != null && !IsOperation(new List<EOperation> { EOperation.End }))
                 errManager.AddError(new CompilerError(curToken.Line, curToken.Col, EErrorType.errInStatement), true);
         }
 
@@ -395,8 +432,9 @@ namespace PascalCompiler
         void AssignmentStatement()
         {
             CType left;
-            if (variables.ContainsKey(((IdentifierToken)curToken).IdentifierName))
-                left = variables[((IdentifierToken)curToken).IdentifierName].Type;
+            IdentifierToken identToken = (IdentifierToken)curToken;
+            if (variables.ContainsKey(identToken.IdentifierName))
+                left = variables[identToken.IdentifierName].Type;
             else
             {
                 errManager.AddError(new CompilerError(curToken.Line, curToken.Col, EErrorType.errUnknownIdent));
@@ -408,78 +446,202 @@ namespace PascalCompiler
             /* если правая часть выражения не приводима к левой */
             if (!left.isDerivedFrom(right) && left.Type != EValueType.Unknown)
                 errManager.AddError(new CompilerError(curToken.Line, curToken.Col, EErrorType.errTypeMismatch));
+            /* извлечь из стека верхнее значение и поместить в переменную */
+            if (errManager.GetNumOfErrors() == 0)
+            {
+                if (left.Type == EValueType.Real && right.Type == EValueType.Integer)
+                    il.Emit(OpCodes.Conv_R8);
+                il.Emit(OpCodes.Stloc, variables[identToken.IdentifierName].Lb);
+            }
         }
 
         /* выражение */
         CType Expression()
         {
             var left = SimpleExpression();
-            if (IsOperation(new List<EOperation>() { EOperation.Equals, EOperation.NotEquals, EOperation.Less, 
+            if (IsOperation(new List<EOperation>() { EOperation.Equals, EOperation.NotEquals, EOperation.Less,
                 EOperation.Lesseqv, EOperation.Bigger, EOperation.Bigeqv }))
             {
+                var operation = ((OperationToken)curToken).OperType;
                 GetNextToken();
-                var right = SimpleExpression();
+                var right = SimpleExpression(left);
                 left = CompareOperands(left, right);
+
+                if (errManager.GetNumOfErrors() == 0)
+                {
+                    if (operation == EOperation.Equals || operation == EOperation.NotEquals)
+                    {
+                        il.Emit(OpCodes.Ceq);
+                        if (operation == EOperation.NotEquals)
+                        {
+                            il.Emit(OpCodes.Ldc_I4_1);
+                            il.Emit(OpCodes.Sub);
+                            il.Emit(OpCodes.Neg);
+                        }
+                    }
+                    else if (operation == EOperation.Less || operation == EOperation.Bigeqv)
+                    {
+                        il.Emit(OpCodes.Clt);
+                        if (operation == EOperation.Bigeqv)
+                        {
+                            il.Emit(OpCodes.Ldc_I4_1);
+                            il.Emit(OpCodes.Sub);
+                            il.Emit(OpCodes.Neg);
+                        }
+                    }
+                    else if (operation == EOperation.Bigger || operation == EOperation.Lesseqv)
+                    {
+                        il.Emit(OpCodes.Cgt);
+                        if (operation == EOperation.Lesseqv)
+                        {
+                            il.Emit(OpCodes.Ldc_I4_1);
+                            il.Emit(OpCodes.Sub);
+                            il.Emit(OpCodes.Neg);
+                        }
+                    }
+                }
             }
             return left;
         }
 
         /* простое выражение */
-        CType SimpleExpression()
+        CType SimpleExpression(CType prevType = null)
         {
-            bool sign = false;
-            if (IsOperation(new List<EOperation>() { EOperation.Plus, EOperation.Min }))
+            int sign = 0; // 0: нет знака, 1: +, 2: -
+            if (IsOperation(new List<EOperation> { EOperation.Plus, EOperation.Min }))
             {
-                sign = true;
+                if (IsOperation(new List<EOperation> { EOperation.Plus }))
+                    sign = 1;
+                else
+                    sign = 2;
                 GetNextToken();
             }
-            var left = Term();
-            if (sign && (left.Type == EValueType.String || left.Type == EValueType.Boolean))
+            var left = Term(prevType);
+            if (sign > 0 && (left.Type == EValueType.String || left.Type == EValueType.Boolean))
                 errManager.AddError(new CompilerError(curToken.Line, curToken.Col, EErrorType.errTypeMismatch));
+            /* инверсировать значение, если был знак '-' перед слагаемым */
+            if (errManager.GetNumOfErrors() == 0 && sign == 2)
+                il.Emit(OpCodes.Neg);
             while (IsOperation(new List<EOperation>() { EOperation.Plus, EOperation.Min, EOperation.Or }))
             {
                 var operation = ((OperationToken)curToken).OperType;
                 GetNextToken();
-                var right = Term();
+                var right = Term(left);
                 left = AdditiveOperands(left, operation, right);
+
+                if (errManager.GetNumOfErrors() > 0)
+                    continue;
+
+                if (operation == EOperation.Plus)
+                {
+                    if (left.Type == EValueType.String)
+                    {
+                        /* конкатенация строк */
+                        il.Emit(OpCodes.Call, typeof(string).GetMethod("Concat", new Type[] { typeof(string), typeof(string) }));
+                    }
+                    else
+                        il.Emit(OpCodes.Add);
+                }
+                else if (operation == EOperation.Min)
+                {
+                    il.Emit(OpCodes.Sub);
+                }
+                else if (operation == EOperation.Or)
+                {
+                    il.Emit(OpCodes.Or);
+                }
+
             }
             return left;
         }
 
         /* слагаемое */
-        CType Term()
+        CType Term(CType prevType)
         {
-            var left = Factor();
+            var left = Factor(prevType);
             while (IsOperation(new List<EOperation>() { EOperation.Mul, EOperation.Division, EOperation.Mod, EOperation.Div, EOperation.And }))
             {
                 var operation = ((OperationToken)curToken).OperType;
                 GetNextToken();
-                var right = Factor();
+                var right = operation == EOperation.Division? Factor(left, true): Factor(left);
+
                 left = MultiplyOperands(left, operation, right);
+
+                if (errManager.GetNumOfErrors() > 0)
+                    continue;
+
+                if (operation == EOperation.Mul)
+                {
+                    il.Emit(OpCodes.Mul);
+                }
+                else if (operation == EOperation.Division || operation == EOperation.Div)
+                {
+                    il.Emit(OpCodes.Div);
+                }
+                else if (operation == EOperation.Mod)
+                {
+                    il.Emit(OpCodes.Rem);
+                }
+                else if (operation == EOperation.And)
+                {
+                    il.Emit(OpCodes.And);
+                }
+
             }
             return left;
         }
 
         /* множитель */
-        CType Factor ()
+        CType Factor(CType prevType, bool floatDivision = false)
         {
             CType expr = availableTypes["unknown"]; // тип выражения неизвестен
 
             if (IsIdentOrConst(new List<ETokenType>() { ETokenType.Const }))
             {
-                switch (((ConstValueToken)curToken).ConstVal.ValueType)
+                ConstValueToken constToken = (ConstValueToken)curToken;
+                switch (constToken.ConstVal.ValueType)
                 {
                     case EValueType.Integer:
+                        var intConst = (IntegerVariant)constToken.ConstVal;
                         expr = availableTypes["integer"];
+                        if (errManager.GetNumOfErrors() == 0)
+                        {
+                            if (prevType != null && prevType.Type == EValueType.Integer && floatDivision)
+                                il.Emit(OpCodes.Conv_R8);
+                            il.Emit(OpCodes.Ldc_I4, intConst.IntegerValue);
+                            if (prevType != null && (prevType.Type == EValueType.Real || floatDivision))
+                                il.Emit(OpCodes.Conv_R8);
+
+                        }
                         break;
                     case EValueType.Real:
+                        var realConst = (RealVariant)constToken.ConstVal;
                         expr = availableTypes["real"];
+                        if (errManager.GetNumOfErrors() == 0)
+                        {
+                            if (prevType != null && prevType.Type == EValueType.Integer)
+                                il.Emit(OpCodes.Conv_R8);
+                            il.Emit(OpCodes.Ldc_R8, realConst.RealValue);
+                        }
                         break;
                     case EValueType.String:
+                        var stringConst = (StringVariant)constToken.ConstVal;
                         expr = availableTypes["string"];
+                        if (errManager.GetNumOfErrors() == 0)
+                        {
+                            il.Emit(OpCodes.Ldstr, stringConst.StringValue);
+                        }
                         break;
                     case EValueType.Boolean:
+                        var boolConst = (BooleanVariant)constToken.ConstVal;
                         expr = availableTypes["boolean"];
+                        if (errManager.GetNumOfErrors() == 0)
+                        {
+                            if (!boolConst.BoolValue)
+                                il.Emit(OpCodes.Ldc_I4_0);
+                            else
+                                il.Emit(OpCodes.Ldc_I4_1);
+                        }
                         break;
                 }
                 GetNextToken();
@@ -487,8 +649,23 @@ namespace PascalCompiler
 
             else if (IsIdentOrConst(new List<ETokenType>() { ETokenType.Identifier }))
             {
-                if (variables.ContainsKey(((IdentifierToken)curToken).IdentifierName))
-                    expr = variables[((IdentifierToken)curToken).IdentifierName].Type;
+                IdentifierToken identToken = (IdentifierToken)curToken;
+                if (variables.ContainsKey(identToken.IdentifierName))
+                {
+                    expr = variables[identToken.IdentifierName].Type;
+                    if (errManager.GetNumOfErrors() == 0)
+                    {
+                        if (prevType != null && prevType.Type == EValueType.Integer && (expr.Type == EValueType.Real || floatDivision))
+                        {
+                            il.Emit(OpCodes.Conv_R8);
+                        }
+                        il.Emit(OpCodes.Ldloc, variables[identToken.IdentifierName].Lb);
+                        if (prevType != null && (prevType.Type == EValueType.Real || floatDivision) && expr.Type == EValueType.Integer)
+                        {
+                            il.Emit(OpCodes.Conv_R8);
+                        }
+                    }
+                }
                 else
                     errManager.AddError(new CompilerError(curToken.Line, curToken.Col, EErrorType.errUnknownIdent));
                 GetNextToken();
@@ -504,11 +681,17 @@ namespace PascalCompiler
             else if (IsOperation(new List<EOperation>() { EOperation.Not }))
             {
                 GetNextToken();
-                expr = Factor();
+                expr = Factor(prevType);
                 if (expr.Type != EValueType.Boolean && expr.Type != EValueType.Unknown)
                 {
                     errManager.AddError(new CompilerError(curToken.Line, curToken.Col, EErrorType.errTypeMismatch));
                     expr = availableTypes["unknown"];
+                }
+                else if (errManager.GetNumOfErrors() == 0)
+                {
+                    il.Emit(OpCodes.Ldc_I4_1);
+                    il.Emit(OpCodes.Sub);
+                    il.Emit(OpCodes.Neg);
                 }
             }
 
@@ -541,17 +724,39 @@ namespace PascalCompiler
             }
             catch (CompilerError)
             {
-                SkipTo(new List<ETokenType> { ETokenType.Identifier }, new List<EOperation> 
+                SkipTo(new List<ETokenType> { ETokenType.Identifier }, new List<EOperation>
                     { EOperation.Then, EOperation.Begin, EOperation.If, EOperation.While, EOperation.Semicolon, EOperation.End });
-                if (IsOperation(new List<EOperation> { EOperation.Then })) 
+                if (IsOperation(new List<EOperation> { EOperation.Then }))
                     GetNextToken();
             }
 
-            Statement();
+            /* метки */
+            Label falseLabel = il.DefineLabel();
+            Label trueLabel = il.DefineLabel();
+            Label endLabel = il.DefineLabel();
+
+            if (errManager.GetNumOfErrors() == 0)
+            {
+                il.Emit(OpCodes.Brtrue, trueLabel); // if true
+                il.Emit(OpCodes.Br, falseLabel); // if false
+
+                il.MarkLabel(trueLabel);
+                Statement();
+
+                il.Emit(OpCodes.Br, endLabel);
+                il.MarkLabel(falseLabel);
+            }
+
             if (IsOperation(new List<EOperation>() { EOperation.Else }))
             {
                 GetNextToken();
                 Statement();
+            }
+
+            if (errManager.GetNumOfErrors() == 0)
+            {
+                il.Emit(OpCodes.Br, endLabel);
+                il.MarkLabel(endLabel);
             }
         }
 
@@ -559,6 +764,17 @@ namespace PascalCompiler
         void LoopStatement()
         {
             GetNextToken();
+            /* метки */
+            Label loopCondition = il.DefineLabel();
+            Label loopBody = il.DefineLabel();
+            Label loopEnd = il.DefineLabel();
+
+            if (errManager.GetNumOfErrors() == 0)
+            {
+                il.Emit(OpCodes.Br, loopCondition);
+                il.MarkLabel(loopCondition);
+            }
+
             try
             {
                 var expr = Expression();
@@ -579,12 +795,64 @@ namespace PascalCompiler
             {
                 SkipTo(new List<ETokenType> { ETokenType.Identifier }, new List<EOperation>
                     { EOperation.Do, EOperation.Begin, EOperation.If, EOperation.While, EOperation.Semicolon, EOperation.End });
-                if (IsOperation(new List<EOperation> { EOperation.Do}))
+                if (IsOperation(new List<EOperation> { EOperation.Do }))
                     GetNextToken();
             }
 
-            Statement();
+            if (errManager.GetNumOfErrors() == 0)
+            {
+                il.Emit(OpCodes.Brtrue, loopBody); // выражение true
+                il.Emit(OpCodes.Br, loopEnd); // выражение false
+                il.MarkLabel(loopBody);
+                Statement();
 
+                il.Emit(OpCodes.Br, loopCondition);
+
+                il.MarkLabel(loopEnd);
+            }
+
+        }
+        /* вывод в консоль */
+        void OutputStatement()
+        {
+            string methodName = IsOperation(new List<EOperation> { EOperation.Writeln }) ? "WriteLine" : "Write";
+            GetNextToken();
+            try
+            {
+                Accept(EOperation.LeftBracket);
+                CType expr = null;
+                if (!IsOperation (new List<EOperation> { EOperation.RightBracket }))
+                    expr = Expression();
+                Accept(EOperation.RightBracket);
+                if (errManager.GetNumOfErrors() == 0)
+                {
+                    if (expr == null)
+                        il.Emit(OpCodes.Call, typeof(Console).GetMethod(methodName, new Type[] { }));
+                    else
+                    {
+                        switch (expr.Type)
+                        {
+                            case EValueType.Integer:
+                                il.Emit(OpCodes.Call, typeof(Console).GetMethod(methodName, new Type[] { typeof(int) }));
+                                break;
+                            case EValueType.Real:
+                                il.Emit(OpCodes.Call, typeof(Console).GetMethod(methodName, new Type[] { typeof(double) }));
+                                break;
+                            case EValueType.String:
+                                il.Emit(OpCodes.Call, typeof(Console).GetMethod(methodName, new Type[] { typeof(string) }));
+                                break;
+                            case EValueType.Boolean:
+                                il.Emit(OpCodes.Call, typeof(Console).GetMethod(methodName, new Type[] { typeof(bool) }));
+                                break;
+                        }
+                    }
+                }
+            }
+            catch (CompilerError)
+            {
+                SkipTo(new List<ETokenType> { ETokenType.Identifier }, new List<EOperation> { EOperation.Semicolon, EOperation.End });
+            }
         }
     }
 }
+
