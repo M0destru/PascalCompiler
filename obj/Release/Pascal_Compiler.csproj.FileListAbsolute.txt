@@ -1,7 +1,0 @@
-C:\Users\Rustam-PC\source\repos\Pascal_Compiler\bin\Release\Pascal_Compiler.exe.config
-C:\Users\Rustam-PC\source\repos\Pascal_Compiler\bin\Release\Pascal_Compiler.exe
-C:\Users\Rustam-PC\source\repos\Pascal_Compiler\bin\Release\Pascal_Compiler.pdb
-C:\Users\Rustam-PC\source\repos\Pascal_Compiler\obj\Release\Pascal_Compiler.csproj.AssemblyReference.cache
-C:\Users\Rustam-PC\source\repos\Pascal_Compiler\obj\Release\Pascal_Compiler.csproj.CoreCompileInputs.cache
-C:\Users\Rustam-PC\source\repos\Pascal_Compiler\obj\Release\Pascal_Compiler.exe
-C:\Users\Rustam-PC\source\repos\Pascal_Compiler\obj\Release\Pascal_Compiler.pdb
